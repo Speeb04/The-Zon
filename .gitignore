@@ -125,3 +125,8 @@ coverage.xml
 # Operating System Files
 .DS_Store
 Thumbs.db
+
+# Large ass files can go fuck themselves
+data/og_data_csv.csv
+data/og_parka.parquet
+data/taxi_data.csv

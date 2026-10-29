@@ -1,7 +1,7 @@
 import pandas as pd
 
-INPUT_FILE_NAME = 'taxi_data.parquet'
-OUTPUT_FILE_NAME = 'taxi_data.csv'
+INPUT_FILE_NAME = 'data/taxi_data.parquet'
+OUTPUT_FILE_NAME = 'data/taxi_data.csv'
 
 if __name__ == "__main__":
     data = pd.read_parquet(INPUT_FILE_NAME)

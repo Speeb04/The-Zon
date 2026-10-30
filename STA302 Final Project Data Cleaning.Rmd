@@ -1,0 +1,489 @@
+---
+title: "STA302 Final Project Data Cleaning"
+author: "Luca Pallotta"
+date: "2026-10-30"
+output: html_document
+---
+
+
+Load in the New York City Yellow Taxi trip data into a data frame.
+```{r}
+setwd('/Users/lucapallotta/Desktop/STA302/Assignment Part 1/Data Files')
+
+library(arrow)
+
+trip_data <- read_parquet('JulyTripData.parquet')
+```
+
+Remove the rows from the dataframe that will not be used as predictors.
+```{r}
+trip_data <- read_parquet('JulyTripData.parquet')
+trip_data_relevant <- subset(trip_data, select = -c(VendorID, store_and_fwd_flag, fare_amount, extra, mta_tax, tolls_amount, improvement_surcharge,
+                                           congestion_surcharge, Airport_fee, cbd_congestion_fee, request_source))
+
+# Remove any rows that contain NaN values.
+trip_data_no_nans <- na.omit(trip_data_relevant)
+
+# Only include trips in which the customer payed by card (since tip amounts were only tracked for this payment method). Furthermore, remove any datapoints for which a negative tip value was recorded. These data are evidently unreliable.
+trip_data_card <- trip_data_no_nans[trip_data_no_nans$payment_type == 1 & trip_data_no_nans$tip_amount >= 0, ]
+
+# Remove the payment_type column, since it now only includes trips with credit card payments (i.e. it is a column of 1's)
+trip_data_new <- subset(trip_data_card, select = -c(payment_type))
+
+```
+
+```{r}
+
+library(dplyr)
+
+# Create a new column that specifies time of day.
+trip_data_time = mutate(trip_data_new,
+       time_of_day = case_when(
+         6 <= as.integer(format(trip_data_new$tpep_pickup_datetime,"%H")) & as.integer(format(trip_data_new$tpep_pickup_datetime,"%H")) <= 11 ~ "morning",
+         12 <= as.integer(format(trip_data_new$tpep_pickup_datetime,"%H")) & as.integer(format(trip_data_new$tpep_pickup_datetime,"%H")) <= 17 ~ "afternoon",
+         18 <= as.integer(format(trip_data_new$tpep_pickup_datetime,"%H")) & as.integer(format(trip_data_new$tpep_pickup_datetime,"%H")) <= 23 ~ "evening",
+         0 <= as.integer(format(trip_data_new$tpep_pickup_datetime,"%H")) & as.integer(format(trip_data_new$tpep_pickup_datetime,"%H")) <= 5 ~ "night"
+       )
+       )
+
+# Create a new column that specifies whether the ride took place on a holiday or not. (Dataset is from July, so the only holiday is Independence Day).
+trip_data_holiday = mutate(trip_data_time,
+       is_holiday = case_when(
+         as.integer(format(trip_data_time$tpep_pickup_datetime, "%d")) == 4 ~ 1,
+         as.integer(format(trip_data_time$tpep_pickup_datetime, "%d")) != 4 ~ 0
+       )
+       )
+
+# Create a new column that gives the total trip time.
+trip_data_duration = mutate(trip_data_holiday,
+       trip_duration = difftime(trip_data_holiday$tpep_dropoff_datetime, trip_data_holiday$tpep_pickup_datetime, units='mins')
+       )
+
+# Create a column that speficies whether the trip is occuring on the weekend or on a weekday.
+trip_data_day = mutate(trip_data_duration,
+       is_weekend = case_when(
+         as.POSIXlt(trip_data_duration$tpep_pickup_datetime)$wday == 0 ~ 1,
+         as.POSIXlt(trip_data_duration$tpep_pickup_datetime)$wday == 6 ~ 1,
+         as.POSIXlt(trip_data_duration$tpep_pickup_datetime)$wday > 0 & as.POSIXlt(trip_data_duration$tpep_pickup_datetime)$wday < 6 ~ 0
+       )
+       )
+```
+
+
+```{r}
+# Remove non-sensical datapoints. (i.e. trips that last less than a minute, trips where the distance travelled is 0, trips listed as costing zero dollars,
+# and trips in which the dropoff location was unspecified or outside of New York City).
+
+trip_data_newer <- trip_data_day[trip_data_day$trip_duration > 1 & trip_data_day$total_amount >= 0 & trip_data_day$trip_distance >= 0 & 
+                       trip_data_day$DOLocationID < 264 & trip_data_day$passenger_count >= 1, ]
+```
+
+
+
+```{r}
+
+# Load the CSV file that contains the taxi zone code information. Create a lists that relate each zone to its borough.
+locations <- read.csv('taxi_zone_lookup.csv')
+
+manhattan = c()
+queens = c()
+bronx = c()
+staten_island = c()
+brooklyn = c()
+ewr = c()
+
+for (i in 1: length(locations$LocationID)) {
+  if (locations$Borough[i] == 'Manhattan') {
+    manhattan <- append(manhattan, locations$LocationID[i])
+  } else if (locations$Borough[i] == 'Queens') {
+    queens <- append(queens, locations$LocationID[i])
+  } else if (locations$Borough[i] == 'Bronx') {
+    bronx <- append(bronx, locations$LocationID[i])
+  } else if (locations$Borough[i] == 'Staten Island') {
+    staten_island <- append(staten_island, locations$LocationID[i])
+  } else if (locations$Borough[i] == 'Brooklyn') {
+    brooklyn <- append(brooklyn, locations$LocationID[i])
+  } else if (locations$Borough[i] == 'EWR') {
+    ewr <- append(ewr, locations$LocationID[i])
+  }
+}
+
+# Create a new column in trip_data that gives the borough of each trip's drop off location.
+trip_data_loc = mutate(trip_data_newer,
+                   dropoff_borough = case_when(
+                     trip_data_newer$DOLocationID %in% manhattan ~ "Manhattan",
+                     trip_data_newer$DOLocationID %in% queens ~ "Queens",
+                     trip_data_newer$DOLocationID %in% bronx ~ "Bronx",
+                     trip_data_newer$DOLocationID %in% brooklyn ~ "Brooklyn",
+                     trip_data_newer$DOLocationID %in% staten_island ~ "Staten Island",
+                     trip_data_newer$DOLocationID %in% ewr ~ "EWR",
+                   )
+                   )
+
+```
+
+
+```{r}
+# Delete the columns that are no longer needed.
+
+trip_data_final <- subset(trip_data_loc, select = -c(tpep_pickup_datetime, tpep_dropoff_datetime, PULocationID, DOLocationID))
+
+```
+
+```{r}
+# Write the new, cleaned data into a CSV file.
+
+write.csv(trip_data, "nyc_taxi_data.csv", row.names = FALSE)
+
+```
+
+
+
+
+
+PART 2
+
+
+```{r}
+
+trip_data_final$RatecodeID = factor(trip_data_final$RatecodeID)
+trip_data_final$passenger_count = factor(trip_data_final$passenger_count)
+trip_data_final$is_weekend = factor(trip_data_final$is_weekend)
+trip_data_final$dropoff_borough = factor(trip_data_final$dropoff_borough)
+trip_data_final$time_of_day = factor(trip_data_final$time_of_day)
+
+model <- lm(tip_amount ~ passenger_count + trip_distance + trip_duration + RatecodeID + total_amount + time_of_day + is_holiday + is_weekend + dropoff_borough, data=trip_data_final)
+
+x_values <- fitted(model)
+y_values <- model$tip_amount
+
+plot(x = x_values, y = y_values)
+
+y_residuals <- resid(model)
+
+plot(x = x_values, y = y_residuals)
+
+```
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 

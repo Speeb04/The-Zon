@@ -1,0 +1,19 @@
+Creating the model
+```{r}
+trip_data_final$RatecodeID = factor(trip_data_final$RatecodeID)
+trip_data_final$passenger_count = factor(trip_data_final$passenger_count)
+trip_data_final$is_weekend = factor(trip_data_final$is_weekend)
+trip_data_final$dropoff_borough = factor(trip_data_final$dropoff_borough)
+trip_data_final$time_of_day = factor(trip_data_final$time_of_day)
+
+model <- lm(tip_amount ~ passenger_count + trip_distance + trip_duration + RatecodeID + total_amount + time_of_day + is_holiday + is_weekend + dropoff_borough, data=trip_data_final)
+```
+Residual vs Fitted plot
+```{r}
+x_values <- fitted(model)
+y_values <- model$tip_amount
+plot(x = x_values, y = y_values)
+
+y_residuals <- resid(model)
+plot(x = x_values, y = y_residuals)
+```

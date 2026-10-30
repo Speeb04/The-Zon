@@ -16,7 +16,21 @@ Predictors to use:
 
 
 
+List of things we need to do:
 
+- Research Question:
+  - "Where/when/how do taxi drivers get tipped the most in NYC"
+- Write the data cleaning code in Rmd:
+  - Luca
+- Fit a MLR model to the data
+- Determine interaction terms (at least one between a categorical variable and a numerical variable)
+- Check assumptions.
+  - Plot residuals of fitted vs response, predictors vs each others.
+- Evaluate if there are any assumption violations.
+- Find peer reviewed articles relating to our research question.
+  - Sandro
+- Write Proposal
+  - Luca
 
 
 

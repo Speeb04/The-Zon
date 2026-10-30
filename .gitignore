@@ -128,5 +128,5 @@ Thumbs.db
 
 # Large ass files can go fuck themselves
 data/og_data_csv.csv
-data/og_parka.parquet
+data/yellow_tripdata_2026-07.parquet
 data/taxi_data.csv

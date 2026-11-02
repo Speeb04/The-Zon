@@ -1,0 +1,93 @@
+---
+title: "Baseball"
+author: "Me"
+date: "2026-10-30"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Here is our preliminary data cleaning
+
+```{r}
+
+# Read the file and assign it to a variable
+data <- read.csv('../data/cleaned_batting_stats.csv')
+```
+
+```{r}
+# Drop unneeded columns
+data_new <- subset(data, select = c(RBI, Age, G, PA, BB, R, H, X2B, X3B, HR, SF, Lg, Year))
+```
+
+
+```{r}
+# Fitting the model
+model <- lm(RBI ~ Age + G + PA + BB + R + H + X2B + X3B + HR + SF + Lg * Year, data = data_new)
+```
+```{r}
+plot(fitted(model), my_data$RBI,
+     xlab = "Fitted RBI", ylab = "Actual RBI",
+     main = "Actual vs. Fitted RBI",
+     pch = 16, col = rgb(0, 0, 1, 0.3))
+abline(0, 1, col = "red", lwd = 2)   # perfect-prediction line
+
+plot(fitted(model), resid(model))
+
+summary(model)
+```
+
+
+```{r}
+
+data_new$Lg = factor(data_new$Lg)
+
+pairs(data_new)
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

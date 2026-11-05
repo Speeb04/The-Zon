@@ -1,0 +1,17 @@
+Linearity: Maybe
+Well I would say no since Response vs Fitted from my eye seems like it follows and most residual vs fitted / predictor seems to crowd around zero without curving. NOW I did ask a clanker for a second opinion (because who tf is up at 3 fucking am doing stats) and they said that for the residual vs fitted / predictor plots if you look at the outer boundary of residuals they seem to expand upwards (some shrink inwards), which is basically not linear relationship. Also big problem is our linear model is only predicting up to 150 when it should be predicting up to 210 like the observed values.
+
+Independence: Idk
+Can't see no clustering so at least it's not a definite no. How do you even check this someone help me here.
+
+Normality: Violated
+QQplot you see the right side deviating upward very heavily. Also slight deviation on the left side downward. Alse you can see on the boxplots there are heavy tails showing skew.
+
+Equal Variance: Violated
+Fanning then a bit of funnelling at the end in the Residual vs Fitted. Obviously the variance changes. Also funnelling can be observed on Residual vs BMI and slight fanning on Residual vs Age. For the boxplots, you can see disparity in interquartile ranges and outlier spread across groups. Particularly in Residuals vs Race, you see this a lot. For example, the "White" category exhibits a wider vertical range of extreme residuals than "Other".
+
+Multicollinearity: Nah
+Look at the pais plot. No linear relationships observed.
+
+Mental: Violated too
+I will be taking big sleep to get away from this

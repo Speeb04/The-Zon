@@ -137,7 +137,7 @@ cleaned_data <- na.omit(pop_like)
 ## Output cleaned data to CSV
 
 ```{r Output CSV}
-write.csv(CDCdata, "data/cleaned_data.csv", row.names = FALSE)
+write.csv(cleaned_data, "data/cleaned_data.csv", row.names = FALSE)
 ```
 
 ## Pairwise plot

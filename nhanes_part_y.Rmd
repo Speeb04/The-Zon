@@ -1,0 +1,263 @@
+---
+title: "NHANES BP Analysis"
+output: pdf_document
+date: "2026-11-05"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# WARNING: Install these libraries before running this code.
+We're using the *nhanesA* package instead of regular NHANES so that we can create an aggregate dataset that has more datapoints.
+
+```{r Install Packages}
+install.packages(c("dplyr", "nhanesA"), repos = "https://cloud.r-project.org")
+```
+
+## Raw Data Collection by Downloading from NHANES directly
+We divide by three for the final line because each NHANES sample collects information from 300 million people.\\
+Without dividing by three, it's equivalent to treating the dataset as sampling from 900 million people.\\
+
+Note: we are specifically using the cycles from 2011 - 2016 because:\\
+- Race encoding for Non-Hispanic Asian *(from 2011 onwards)*
+- Alcohol consumption encoding was changed from 2017-2018 and onwards
+
+```{r Create raw data table}
+
+library(dplyr)
+library(nhanesA)
+
+cycles <- c("2011-2012" = "_G", "2013-2014" = "_H", "2015-2016" = "_I")
+
+tables <- list(
+  DEMO = c("RIDAGEYR", "RIAGENDR", "RIDRETH3", "DMDEDUC2", "DMDEDUC3",
+           "SDMVPSU", "SDMVSTRA", "WTINT2YR", "WTMEC2YR"),
+  BPX  = paste0("BPXSY", 1:4),
+  BMX  = "BMXBMI",
+  SLQ  = c("SLD010H", "SLD012"),
+  PAQ  = c("PAQ650", "PAQ665", "PAQ710", "PAQ715"),
+  ALQ  = c("ALQ101", "ALQ110", "ALQ120Q", "ALQ120U"),
+  SMQ  = c("SMQ020", "SMQ040"),
+  DUQ  = c("DUQ200", "DUQ211"),
+  BPQ  = c("BPQ020", "BPQ040A", "BPQ050A"),
+  DXX  = "DXDTOPF"
+)
+
+pieces <- list()
+for (cyc in names(cycles)) {
+  sfx    <- cycles[[cyc]]
+  merged <- NULL
+  for (tbl in names(tables)) {
+    d <- nhanes(paste0(tbl, sfx), translated = FALSE)
+    d <- select(d, SEQN, any_of(tables[[tbl]]))
+    merged <- if (is.null(merged)) d else left_join(merged, d, by = "SEQN")
+  }
+  pieces[[cyc]] <- merged
+}
+
+# See write-up above to see why we divide by three
+CDCdata <- mutate(bind_rows(pieces, .id = "Cycle"), WTMEC6YR = WTMEC2YR / 3)
+```
+
+### Optional: Export raw data to CSV
+
+```{r Export CDCdata}
+write.csv(CDCdata, "data/raw_data.csv", row.names = FALSE)
+```
+
+## Re-encode arbitrary internal labels to intuitive names
+
+```{r Label re-encoding}
+decoded_data <- CDCdata %>%
+  mutate(
+    Age  = RIDAGEYR,                       # note: 80 means "80 or older"
+    
+    Sex  = factor(case_when(RIAGENDR == 1 ~ "Male",
+                            RIAGENDR == 2 ~ "Female")),
+    
+    Race3 = factor(case_when(RIDRETH3 %in% 1:2 ~ "Hispanic",
+                             RIDRETH3 == 3     ~ "White",
+                             RIDRETH3 == 4     ~ "Black",
+                             RIDRETH3 == 6     ~ "Asian",
+                             RIDRETH3 == 7     ~ "Other"),
+                   levels = c("White", "Hispanic", "Black", "Asian", "Other")),  # White = baseline
+    
+    CompletedCollege = factor(case_when(
+                              DMDEDUC2 == 5                    ~ 1,   # college grad or above
+                              DMDEDUC2 %in% 1:4                ~ 0,
+                              DMDEDUC3 %in% c(0:15, 55, 66)    ~ 0,   # N/A: ages 18-19
+                              )),
+    
+    BPSysAve = rowMeans(pick(starts_with("BPXSY")), na.rm = TRUE),
+    BPSysAve = if_else(is.nan(BPSysAve), NA_real_, BPSysAve),
+    
+    BMI = BMXBMI,
+    
+    SleepHrsNight = coalesce(SLD010H, SLD012),
+    SleepHrsNight = if_else(SleepHrsNight > 24, NA_real_, SleepHrsNight),
+    
+    PhysActive = factor(case_when(PAQ650 == 1 | PAQ665 == 1 ~ 1,   # Yes
+                                  PAQ650 == 2 & PAQ665 == 2 ~ 0)), # No
+    
+    AlcoholYear = case_when(ALQ120Q == 0  ~ 0,            # Drank for zero days
+                            ALQ120Q > 365 ~ NA_real_,     # Codes 777/999: refused/don't know
+                            ALQ120U == 1  ~ ALQ120Q * 52, # Answered in terms of per week
+                            ALQ120U == 2  ~ ALQ120Q * 12, # Answered in terms of per month
+                            ALQ120U == 3  ~ ALQ120Q,      # Answered in terms of per year
+                            is.na(ALQ120Q) & ALQ110 == 2 ~ 0), # Abstinent
+    
+    SmokeNow = factor(case_when(SMQ020 == 2     ~ 0, # N/A: never smoked 100 cigarettess
+                                SMQ040 %in% 1:2 ~ 1,
+                                SMQ040 == 3     ~ 0)),
+  )
+
+filtered_data <-  decoded_data |> select(SEQN, Cycle, SDMVPSU, SDMVSTRA, WTMEC6YR, # keep weight for re-sampling
+                                  BPSysAve, Age, Sex, Race3, BMI, SleepHrsNight, PhysActive,
+                                  AlcoholYear, SmokeNow, CompletedCollege)
+
+# Filter for adults only
+filtered_data <- filter(filtered_data, WTMEC6YR > 0, Age >= 18 & Age < 80)
+```
+
+## Re-sample according to weights, to account for biases within NHANES
+
+```{r Re-sample for weights}
+# makes the re-sample reproducible
+set.seed(1)
+
+copy <- sample(nrow(filtered_data), size = nrow(filtered_data), replace = TRUE, prob = filtered_data$WTMEC6YR)
+
+# drop the weights now since we're already re-weighted
+pop_like <- filtered_data[copy, ] |> select(-SDMVPSU, -SDMVSTRA, -WTMEC6YR, -Cycle)
+
+cleaned_data <- na.omit(pop_like)
+```
+
+## Output cleaned data to CSV
+
+```{r Output CSV}
+write.csv(CDCdata, "data/cleaned_data.csv", row.names = FALSE)
+```
+
+## Check Interaction Term
+
+```{r}
+male <- cleaned_data[cleaned_data$Sex == 'Male', ]
+female <- cleaned_data[cleaned_data$Sex == 'Female', ]
+
+plot(cleaned_data$BPSysAve ~ cleaned_data$Age, xlab="Age (Yr)", ylab="Systolic Blood Pressure Average (mmHg)", type="n")
+points(male$BPSysAve ~ male$Age, col=adjustcolor("blue", alpha.f = 0.01), pch = 19)
+points(female$BPSysAve ~ female$Age, col=adjustcolor("pink", alpha.f = 0.05), pch = 19)
+lines(lowess(male$BPSysAve ~ male$Age), col="blue")
+lines(lowess(female$BPSysAve ~ female$Age), col="red")
+
+legend("topleft", 
+       legend = c("Male", "Female"), 
+       col = c(adjustcolor("blue", alpha.f = 0.5), adjustcolor("red", alpha.f = 0.5)), 
+       pch = 19, 
+       bty = "n")
+```
+
+## Linear Model
+
+```{r}
+model <- lm(BPSysAve ~ Age + Sex + Race3 + BMI + PhysActive + AlcoholYear + SmokeNow + SleepHrsNight + CompletedCollege + Age:Sex, data=cleaned_data)
+
+summary(model)
+```
+
+## Assumption Checkin
+
+```{r}
+# Residual Vs Fitted
+plot(fitted(model), resid(model), main="Residual vs Fitted")
+
+# use this command to plot these in a single grid
+par(mfrow=c(2,2))
+# Residual vs each quantitative predictor
+y_value = resid(model)
+plot(x = cleaned_data$Age, y = y_value, main="Residual vs Age",
+xlab="Age", ylab="Residual")
+plot(x = cleaned_data$BMI, y = y_value, main="Residual vs BMI",
+xlab="BMI", ylab="Residual")
+plot(x = cleaned_data$AlcoholYear, y = y_value, main="Residual vs No. Alcohol bottle per year",
+xlab="Alcohol", ylab="Residual")
+plot(x = cleaned_data$SleepHrsNight, y = y_value, main="Residual vs Hours Slept",
+xlab="Hours Slept", ylab="Residual")
+
+# make another grid
+par(mfrow=c(2,3))
+# Residual vs each categorical predictor boxplots
+boxplot(y_value ~ cleaned_data$Sex , main="Residual vs Gender",
+xlab="Gender", ylab="Residuals")
+boxplot(y_value ~ cleaned_data$Race3 , main="Residual vs Race",
+xlab="Race", ylab="Residuals")
+boxplot(y_value ~ cleaned_data$PhysActive , main="Residuals vs Fitness",
+xlab="Exercise?", ylab="Residuals")
+boxplot(y_value ~ cleaned_data$SmokeNow , main="Residuals vs Smoke",
+xlab="Smoking Now?", ylab="Residuals")
+boxplot(y_value ~ cleaned_data$CompletedCollege , main="Residuals vs College Completion",
+xlab="College Grad?", ylab="Residuals")
+
+# QQplot
+par(mfrow=c(1,1))
+qqnorm(resid(model))
+qqline(resid(model))
+```
+
+## Additional Condition Check
+## Respons vs Fitted
+
+```{r}
+plot(fitted(model), cleaned_data$BPSysAve, xlab = 'Estimated Diastolic BP Values', ylab = 'Observed Diastolic BP Values', 
+     main = "Actual vs. Estimated Diastolic Blood Pressure Values", pch = 16, col='blue')
+abline(a=0, b=1, col = "red", lwd = 2)
+```
+
+## Multicollinearity Condition: Pairwise plot
+### WARNING: Run this at your own risk. Takes a long time to load.
+
+```{r}
+preds = cleaned_data[,3:11]
+pairs(preds)
+```
+
+## Table
+
+```{r}
+# Numerical variables summary
+num_vars <- cleaned_data[, c("BPSysAve", "Age", "BMI", "AlcoholYear", "SleepHrsNight")]
+summary(num_vars)
+sapply(num_vars, function(x) c(SD = sd(x, na.rm = TRUE), IQR = IQR(x, na.rm = TRUE)))
+# Count of missing (NA) values for each numerical variable
+colSums(is.na(num_vars))
+
+# Quick fixing
+fix <- cleaned_data[, c("PhysActive", "SmokeNow", "CompletedCollege")]
+fix$PhysActive2 <- factor(fix$PhysActive, 
+                                       levels = c(0, 1), 
+                                       labels = c("Fat", "Fit"))
+fix$SmokeNow2 <- factor(fix$SmokeNow, 
+                                       levels = c(0, 1), 
+                                       labels = c("Non-smoking", "Smoking"))
+fix$CompletedCollege2 <- factor(fix$CompletedCollege, 
+                                       levels = c(0, 1), 
+                                       labels = c("Failed", "Finished"))
+
+# Categorical variables summary
+table(cleaned_data$Sex, useNA = "always")
+prop.table(table(cleaned_data$Sex)) * 100
+
+table(cleaned_data$Race3, useNA = "always")
+prop.table(table(cleaned_data$Race3)) * 100
+
+table(fix$PhysActive2, useNA = "always")
+prop.table(table(fix$PhysActive2)) * 100
+
+table(fix$SmokeNow2, useNA = "always")
+prop.table(table(fix$SmokeNow2)) * 100
+
+table(fix$CompletedCollege2, useNA = "always")
+prop.table(table(fix$CompletedCollege2)) * 100
+```

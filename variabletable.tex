@@ -1,0 +1,106 @@
+\documentclass{article}
+\usepackage{graphicx} % Required for inserting images
+\usepackage[margin=1cm]{geometry}
+\usepackage{array}
+\usepackage{amsmath}
+\pagestyle{empty}
+
+
+\begin{document}
+\noindent
+{\Large Table 1: Continuous Variables Summary ($N = 14,307$)}
+\begin{center}
+    \small
+    \begin{tabular}{|c|c|c|c|c|c|c|c|c|c|c|c|}
+        \hline
+        Variable & Min & 1st Qt & Median & Mean & 3rd Qt & Max & SD & IQR & Missing (N) \\
+        \hline
+        BPSysAve (Systolic BP Average) & 64.67 & 110.67 & 119.33 & 121.29 & 130.00 & 219.33 & 15.94 & 19.33 & 0 \\
+        \hline
+        Age (Years) & 18.00 & 31.00 & 45.00 & 45.50 & 59.00 & 79.00 & 16.46 & 28.00 & 0 \\
+        \hline
+        BMI (kg/m2) & 14.10 & 24.20 & 27.90 & 29.13 & 32.60 & 77.50 & 6.96 & 8.40 & 0 \\
+        \hline
+        AlcoholYear (Drinks/Year) & 0.00 & 0.00 & 12.00 & 61.78 & 104.00 & 365.00 & 95.14 & 104.00 & 0 \\
+        \hline
+        SleepHrsNight (Hours) & 2.00 & 6.00 & 7.00 & 7.19 & 8.00 & 14.50 & 1.40 & 2.00 & 0 \\
+        \hline
+    \end{tabular}
+\end{center}
+\bigskip
+{\Large Table 2: Categorical Variables Distribution ($N = 14,307$)}
+\begin{center}
+    \small
+    \begin{tabular}{|c|c|c|c|}
+        \hline
+        Variable & Category & Count (N) & Percentage (\%) \\
+        \hline
+        Sex & Female & 7,199 & 50.32\% \\
+        \hline
+        Sex & Male & 7,108 & 49.68\% \\
+        \hline
+        Sex & NA & 0 & 0\% \\
+        \hline
+        Race3 & White & 9,376 & 65.53\% \\
+        \hline
+        Race3 & Hispanic & 2,145 & 14.99\% \\
+        \hline
+        Race3 & Black & 1,645 & 11.50\% \\
+        \hline
+        Race3 & Asian & 691 & 4.83\% \\
+        \hline
+        Race3 & Other & 450 & 3.15\% \\
+        \hline 
+        Race3 & NA & 0 & 0\% \\
+        \hline
+        PhysActive & 1 (Fit) & 8,016 & 56.03\% \\
+        \hline
+        PhysActive & 0 (Fat) & 6,291 & 43.97\% \\
+        \hline
+        PhysActive & NA & 0 & 0\% \\
+        \hline
+        SmokeNow & 1 (Smoking) & 2,838 & 19.84\% \\
+        \hline
+        SmokeNow & 0 (Non-smoking) & 11,469 & 80.16\% \\
+        \hline
+        SmokeNow & NA & 0 & 0\% \\
+        \hline
+        CompletedCollege & 1 (Finished) & 4,469 & 31.24\% \\
+        \hline
+        CompletedCollege & 0 (Failed) & 9,838 & 68.76\% \\
+        \hline
+        CompletedCollege & NA & 0 & 0\% \\
+        \hline
+    \end{tabular}
+\end{center}
+\bigskip
+{\Large Table 3: Captions}
+\begin{center}
+    \small
+    \begin{tabular}{|c|>{\centering\arraybackslash}p{12cm}|}
+        \hline
+        Variable & Caption \\
+        \hline
+        BPSysAve (Systolic BP Average) & Reaches a maximum of $219.33$ mmHg, indicative of severe hypertensive crisis levels. Max value looks to be a possible outlier since median and mean around $120.00$ and 3rd Qt is close at $130.00$, which are all very far from $219.33$ value. 1st Qt is also close to mean and median at $110.97$, so the farther minimum of $64.67$ might also be an outlier. \\
+        \hline
+        Age (Years) & Shows wide dispersion across adult cohorts ($\text{SD} = 16.46$, range $18–79$ years). \\
+        \hline
+        BMI (kg/m2) & Ranges from an very low $14.10$ $\text{kg/m}^2$ (severe underweight/this is very bad) to an extreme high of $77.50$ $\text{kg/m}^2$ (class III/super obesity). Max value looks to be a possible outlier since median and mean around $28.00$ and 3rd Qt is close at $32.60$, which are all very far from $77.50$ value. \\
+        \hline
+        AlcoholYear (Drinks/Year) & Exhibits extreme right-skewness, evidenced by a median of $12.00$ and a mean of $61.78$, with at least 50\% of respondents reporting very low consumption ($0$ to $12$ units) alongside a maximum value of $365.00$ and a high standard deviation ($\text{SD} = 95.14$). \\
+        \hline
+        SleepHrsNight (Hours) & Spans from a restrictive $2.00$ hours (like me) to an extended $14.50$ hours per night (i wish). Low standard deviation of $1.40$ means most people probably get around $6-8$ hours of sleep; close to the mean of $7.19$ hours. \\
+        \hline
+        Sex & The sample exhibits an almost perfectly balanced biological sex ratio with 50.32\% females ($n = 7,199$) and 49.68\% males ($n = 7,108$). This equal representation ensures sufficient statistical power to evaluate sex-specific main effects and interactions without weighting adjustments. \\
+        \hline
+        Race3 & The study population is predominantly White (65.53\%), followed by Hispanic (14.99\%), and Black (11.50\%) not trailing that far behind. Asian (4.83\%) and Other racial identities (3.15\%) make up small percentages. \\
+        \hline
+        PhysActive & Over half of the cohort is categorized as physically active (56.03\%, $n = 8,016$), while 43.97\% ($n = 6,291$) are classified as inactive. This split still provides a good balance for evaluating the association between self-reported physical activity levels and blood pressure. \\
+        \hline
+        SmokeNow & A large majority of participants are non-smokers at 80.16\%, while active smokers account for nearly one-fifth of the sample at 19.84\%. \\
+        \hline
+        CompletedCollege & Education levels skew toward non-completion, with 68.76\% not completed compared to 31.24\% with degree. \\
+        \hline
+    \end{tabular}
+\end{center}
+\end{document}
